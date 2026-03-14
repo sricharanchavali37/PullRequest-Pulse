@@ -1,53 +1,68 @@
 """
-worker.py — Phase-2 Worker
+worker.py — Phase-3 PR Analysis Worker
 
-Responsibilities:
-  1. Connect to Redis
-  2. Ensure the consumer group exists (idempotent)
-  3. Run an infinite async loop:
-       a. Read one message from the stream via XREADGROUP
-       b. Extract event_type and pr_number
-       c. Log the event to the console
-       d. Acknowledge the message with XACK
+Preserves all Phase-2 Redis consumer group logic unchanged.
+Extends the per-message handler with a full async analysis pipeline.
 
-This module contains no GitHub API calls, no database writes,
-and no risk scoring — those belong to later phases.
+Pipeline per pr.opened event:
+  1. Fetch PR metadata from GitHub API
+  2. Fetch changed files (paginated)
+  3. Parse diffs for risk signals
+  4. Compute deterministic risk score
+  5. Print structured analysis result
+  6. XACK the Redis message
+
+Safety contract:
+  - Analysis errors are caught per-message — the worker never terminates
+    because a single PR failed.
+  - XACK always runs in a finally block so messages never pile up
+    in the Pending Entries List due to processing failures.
 """
 
 import asyncio
+import logging
 import socket
 
 import redis.asyncio as aioredis
 from redis.exceptions import ResponseError
 
-from app.config import REDIS_URL, STREAM_NAME, GROUP_NAME
+from app.config import (
+    REDIS_URL, STREAM_NAME, GROUP_NAME,
+    GITHUB_OWNER, GITHUB_REPO,
+    validate_config,
+)
+from app.github.client  import fetch_pr_metadata, fetch_pr_files, close_client
+from app.diff.parser    import parse_diff
+from app.risk.scorer    import compute_risk
+from app.models.pr_data import PRAnalysis
 
+logging.basicConfig(
+    level  = logging.INFO,
+    format = "%(asctime)s  %(levelname)-7s  %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# ── Consumer name ─────────────────────────────────────────────────────────────
 
 def _consumer_name() -> str:
-    """
-    Unique name for this consumer within the group.
-    Using the hostname means multiple worker processes on different
-    machines can join the same group without name collisions.
-    """
     return f"worker-{socket.gethostname()}"
 
 
+# ── Consumer group bootstrap ──────────────────────────────────────────────────
+
 async def _ensure_consumer_group(client: aioredis.Redis) -> None:
     """
-    Creates the consumer group if it does not already exist.
-
-    MKSTREAM creates the stream itself if it does not yet exist —
-    safe to call even before the webhook service has written anything.
-
-    If the group already exists Redis raises BUSYGROUP. We catch that
-    specific error and continue — it is not a problem.
+    Create the consumer group idempotently.
+    BUSYGROUP means it already exists — not an error.
+    All other ResponseErrors propagate.
     """
     try:
         await client.xgroup_create(
-            name     = STREAM_NAME,
-            groupname= GROUP_NAME,
-            id       = "$",        # only deliver messages arriving from now on
-            mkstream = True,       # create the stream key if absent
+            name      = STREAM_NAME,
+            groupname = GROUP_NAME,
+            id        = "$",
+            mkstream  = True,
         )
         print(f"Consumer group '{GROUP_NAME}' created on stream '{STREAM_NAME}'")
     except ResponseError as exc:
@@ -57,93 +72,144 @@ async def _ensure_consumer_group(client: aioredis.Redis) -> None:
             raise
 
 
-def _process_event(redis_message_id: str, fields: dict) -> None:
+# ── Output formatter ──────────────────────────────────────────────────────────
+
+def _print_analysis(analysis: PRAnalysis) -> None:
+    """Print a structured PR analysis result to stdout."""
+    print(f"\nProcessing PR #{analysis.pr_number}\n")
+    print(f"Author: {analysis.author}")
+    print(f"Files changed: {analysis.files_changed}")
+    print(f"Lines added: {analysis.lines_added}")
+    print(f"Lines removed: {analysis.lines_removed}")
+
+    if analysis.breaking_changes:
+        print("\nBreaking changes detected:\n")
+        for bc in analysis.breaking_changes:
+            print(f"  * {bc.signal_type} in {bc.filename}")
+    else:
+        print("\nNo breaking changes detected.")
+
+    print(f"\nRisk Score: {int(analysis.risk_score)}")
+    print(f"Risk Level: {analysis.risk_level}")
+
+
+# ── Analysis pipeline ─────────────────────────────────────────────────────────
+
+async def _analyse_pr(pr_number: int) -> PRAnalysis:
     """
-    Phase-2 processing: extract fields and print them.
+    Run the full analysis pipeline for one PR number.
+    Raises on any error — caller handles it.
+    """
+    metadata    = await fetch_pr_metadata(GITHUB_OWNER, GITHUB_REPO, pr_number)
+    author      = metadata.get("user", {}).get("login", "unknown")
 
-    redis_message_id — the stream entry ID e.g. "1704067200000-0"
-    fields           — dict of field names to values, all strings
-                       e.g. {"event_type": "pr.opened", "pr_number": "10"}
+    files       = await fetch_pr_files(GITHUB_OWNER, GITHUB_REPO, pr_number)
 
-    Output format matches the Phase-2 success criteria exactly.
+    diff_result = parse_diff(files)
+
+    risk_result = compute_risk(
+        files_changed    = diff_result["files_changed"],
+        lines_added      = diff_result["lines_added"],
+        lines_removed    = diff_result["lines_removed"],
+        breaking_changes = diff_result["breaking_changes"],
+    )
+
+    return PRAnalysis(
+        pr_number        = pr_number,
+        author           = author,
+        files_changed    = diff_result["files_changed"],
+        lines_added      = diff_result["lines_added"],
+        lines_removed    = diff_result["lines_removed"],
+        breaking_changes = diff_result["breaking_changes"],
+        risk_score       = risk_result["risk_score"],
+        risk_level       = risk_result["risk_level"],
+    )
+
+
+# ── Per-message handler ───────────────────────────────────────────────────────
+
+async def _handle_message(
+    redis_message_id: str,
+    fields:           dict,
+    redis_client:     aioredis.Redis,
+) -> None:
+    """
+    Process one Redis Stream message.
+    XACK always runs — success or failure — via the finally block.
     """
     event_type = fields.get("event_type", "unknown")
-    pr_number  = fields.get("pr_number",  "unknown")
+    pr_number  = fields.get("pr_number",  "")
 
-    print("")
-    print("Processing PR event")
-    print(f"PR number: {pr_number}")
-    print(f"Event type: {event_type}")
-    print(f"Message ID: {redis_message_id}")
+    try:
+        if event_type != "pr.opened":
+            print(f"\nSkipping event '{event_type}' (PR #{pr_number})")
+            return
 
+        if not pr_number:
+            logger.error("Message %s missing pr_number — skipping", redis_message_id)
+            return
+
+        analysis = await _analyse_pr(int(pr_number))
+        _print_analysis(analysis)
+
+    except Exception as exc:
+        logger.error(
+            "Analysis failed for PR #%s (message %s): %s",
+            pr_number, redis_message_id, exc,
+        )
+
+    finally:
+        await redis_client.xack(STREAM_NAME, GROUP_NAME, redis_message_id)
+        print("\nEvent acknowledged")
+
+
+# ── Main worker loop ──────────────────────────────────────────────────────────
 
 async def run_worker() -> None:
     """
-    Main worker loop.
-
-    Connects to Redis, ensures the consumer group exists, then enters
-    an infinite loop reading and acknowledging messages.
-
-    BLOCK 5000 means XREADGROUP waits up to 5 seconds for a new message
-    before returning an empty result. The loop then immediately retries.
-    This avoids a busy-wait while still reacting to new messages within
-    5 seconds of arrival.
+    Validate config, connect to Redis, run the infinite XREADGROUP loop.
     """
+    # Fail fast if required env vars are not set
+    validate_config()
+
     consumer = _consumer_name()
 
     print("Worker starting")
 
-    client = await aioredis.from_url(
+    redis_client = await aioredis.from_url(
         REDIS_URL,
-        decode_responses=True,   # return str, not bytes
+        decode_responses=True,
     )
 
-    # Verify connection before entering the loop
-    await client.ping()
+    await redis_client.ping()
     print("Redis connection established")
-    print("")
-    print(f"Stream: {STREAM_NAME}")
+    print(f"\nStream: {STREAM_NAME}")
     print(f"Consumer group: {GROUP_NAME}")
     print(f"Consumer name: {consumer}")
 
-    await _ensure_consumer_group(client)
+    await _ensure_consumer_group(redis_client)
 
-    print("")
-    print("Listening to Redis stream...")
+    print("\nListening to Redis stream...")
 
-    while True:
-        # XREADGROUP with ">" delivers only messages not yet delivered
-        # to any consumer in this group — the standard production pattern.
-        #
-        # COUNT 1 — process one message per iteration so each event is
-        # acknowledged before the next is read. Keeps the logic simple
-        # for Phase-2 and prevents lost events if the process crashes.
-        results = await client.xreadgroup(
-            groupname    = GROUP_NAME,
-            consumername = consumer,
-            streams      = {STREAM_NAME: ">"},
-            count        = 1,
-            block        = 5000,   # milliseconds — 5 second wait
-        )
+    try:
+        while True:
+            results = await redis_client.xreadgroup(
+                groupname    = GROUP_NAME,
+                consumername = consumer,
+                streams      = {STREAM_NAME: ">"},
+                count        = 1,
+                block        = 5000,
+            )
 
-        # results is None or empty when the block timeout expires
-        # with no new messages. Sleep briefly to prevent a tight CPU
-        # loop, then wait for the next message.
-        if not results:
-            await asyncio.sleep(0.1)
-            continue
+            if not results:
+                await asyncio.sleep(0.1)
+                continue
 
-        # results shape:
-        #   [ (stream_name, [(message_id, {field: value, ...})]) ]
-        for _stream_name, messages in results:
-            for redis_message_id, fields in messages:
+            for _stream_name, messages in results:
+                for redis_message_id, fields in messages:
+                    await _handle_message(redis_message_id, fields, redis_client)
 
-                _process_event(redis_message_id, fields)
-
-                # XACK removes the message from the Pending Entries List.
-                # Only called after processing completes successfully.
-                # If the process crashes before this line the message
-                # stays in the PEL and can be reclaimed later (Phase-4).
-                await client.xack(STREAM_NAME, GROUP_NAME, redis_message_id)
-
-                print("Event acknowledged")
+    finally:
+        # Release the shared HTTP client connection pool on shutdown
+        await close_client()
+        await redis_client.aclose()
