@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRPulse — Pull Request Intelligence Platform</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --ink: #0a0b0e;
+  --ink2: #111318;
+  --ink3: #181c24;
+  --ink4: #1f2433;
+  --line: #252c3d;
+  --line2: #2e3850;
+  --fog: #94a3b8;
+  --fog2: #64748b;
+  --fog3: #3d4a60;
+  --white: #f0f4ff;
+  --white2: #c8d4ec;
+  --white3: #8a9bbc;
+  --signal: #00e5a0;
+  --signal2: #00b87a;
+  --signal-bg: rgba(0,229,160,0.07);
+  --signal-border: rgba(0,229,160,0.2);
+  --sky: #38bdf8;
+  --sky2: #0ea5e9;
+  --sky-bg: rgba(56,189,248,0.07);
+  --sky-border: rgba(56,189,248,0.2);
+  --flame: #fb923c;
+  --flame2: #ea580c;
+  --flame-bg: rgba(251,146,60,0.07);
+  --flame-border: rgba(251,146,60,0.2);
+  --rose: #f43f5e;
+  --rose-bg: rgba(244,63,94,0.07);
+  --rose-border: rgba(244,63,94,0.2);
+  --violet: #a78bfa;
+  --violet-bg: rgba(167,139,250,0.07);
+  --violet-border: rgba(167,139,250,0.2);
+  --gold: #fbbf24;
+  --gold-bg: rgba(251,191,36,0.07);
+  --gold-border: rgba(251,191,36,0.2);
+  --mono: 'IBM Plex Mono', monospace;
+  --serif: 'Instrument Serif', serif;
+  --sans: 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--ink);
+  color: var(--white2);
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+
+/* ── NAV BAR ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,11,14,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--line);
+  padding: 0 28px;
+}
+
+.nav-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--signal);
+  letter-spacing: -0.5px;
+  margin-right: 12px;
+}
+
+.nav-dot { color: var(--fog3); font-size: 10px; }
+
+.nav-link {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fog2);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+}
+.nav-link:hover { color: var(--white2); background: var(--ink3); }
+
+/* ── HERO ── */
+.hero {
+  padding: 100px 28px 80px;
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--signal);
+  background: var(--signal-bg);
+  border: 1px solid var(--signal-border);
+  padding: 5px 14px;
+  border-radius: 20px;
+  margin-bottom: 28px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.hero-eyebrow::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--signal);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.hero-title {
+  font-family: var(--serif);
+  font-size: clamp(44px, 7vw, 72px);
+  line-height: 1.05;
+  color: var(--white);
+  margin-bottom: 10px;
+  letter-spacing: -2px;
+}
+
+.hero-title em {
+  font-style: italic;
+  background: linear-gradient(90deg, var(--signal) 0%, var(--sky) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: 18px;
+  color: var(--fog);
+  max-width: 560px;
+  margin-bottom: 40px;
+  line-height: 1.6;
+  font-weight: 300;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 48px;
+}
+
+.htag {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+.htag-s { background: var(--signal-bg); color: var(--signal); border: 1px solid var(--signal-border); }
+.htag-b { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+.htag-v { background: var(--violet-bg); color: var(--violet); border: 1px solid var(--violet-border); }
+.htag-f { background: var(--flame-bg); color: var(--flame); border: 1px solid var(--flame-border); }
+.htag-r { background: var(--rose-bg); color: var(--rose); border: 1px solid var(--rose-border); }
+.htag-g { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+
+/* hero stat row */
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.hstat {
+  background: var(--ink2);
+  padding: 20px 18px;
+  text-align: center;
+}
+
+.hstat-num {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--white);
+  display: block;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.hstat-label {
+  font-size: 11px;
+  color: var(--fog2);
+  display: block;
+  letter-spacing: 0.3px;
+}
+
+/* ── DIVIDER ── */
+hr.section-div {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 72px 0 0;
+}
+
+/* ── SECTION ── */
+.section {
+  padding: 72px 28px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--fog3);
+  margin-bottom: 10px;
+}
+
+.section-heading {
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 40px);
+  color: var(--white);
+  line-height: 1.15;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+
+.section-intro {
+  font-size: 15px;
+  color: var(--fog);
+  max-width: 620px;
+  line-height: 1.75;
+  margin-bottom: 40px;
+  font-weight: 300;
+}
+
+/* ── PROBLEM CARDS ── */
+.problem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.prob-card {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+  transition: border-color 0.2s;
+}
+
+.prob-card:hover { border-color: var(--line2); }
+
+.prob-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.prob-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+
+.prob-desc {
+  font-size: 13px;
+  color: var(--fog);
+  line-height: 1.65;
+}
+
+/* vs strip */
+.vs-strip {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.vs-col { padding: 24px; }
+.vs-mid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink3);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 0 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fog3);
+  writing-mode: horizontal-tb;
+}
+
+.vs-head {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.vs-head-bad { color: var(--rose); }
+.vs-head-good { color: var(--signal); }
+
+.vs-list { list-style: none; }
+.vs-list li {
+  font-size: 13px;
+  color: var(--fog);
+  padding: 4px 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.vs-x { color: var(--rose); font-size: 12px; margin-top: 2px; flex-shrink: 0; }
+.vs-ok { color: var(--signal); font-size: 12px; margin-top: 2px; flex-shrink: 0; }
+
+/* ── TECH STACK ── */
+.stack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stack-item {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.2s;
+}
+
+.stack-item:hover { border-color: var(--line2); }
+
+.stack-icon { font-size: 22px; margin-bottom: 6px; }
+.stack-name { font-size: 13px; font-weight: 600; color: var(--white); }
+.stack-role { font-size: 12px; color: var(--fog2); }
+
+/* ── PIPELINE / ARCHITECTURE ── */
+.pipe-container {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 40px 32px;
+  margin-bottom: 12px;
+}
+
+.pipe-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  position: relative;
+  margin-bottom: 0;
+}
+
+.pipe-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 52px;
+}
+
+.pipe-badge {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.pipe-line {
+  width: 1px;
+  flex: 1;
+  min-height: 32px;
+  margin: 4px 0;
+}
+
+.pipe-content {
+  flex: 1;
+  padding: 6px 0 32px 16px;
+}
+
+.pipe-service {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 5px;
+}
+
+.pipe-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 6px;
+}
+
+.pipe-desc {
+  font-size: 13px;
+  color: var(--fog);
+  line-height: 1.65;
+  margin-bottom: 10px;
+}
+
+.pipe-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ptag {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  letter-spacing: 0.2px;
+}
+
+/* step color themes */
+.ps-1 .pipe-badge { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+.ps-1 .pipe-line  { background: linear-gradient(to bottom, var(--sky-border), transparent); }
+.ps-1 .pipe-service { color: var(--sky); }
+.ps-1 .ptag { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+
+.ps-2 .pipe-badge { background: var(--rose-bg); color: var(--rose); border: 1px solid var(--rose-border); }
+.ps-2 .pipe-line  { background: linear-gradient(to bottom, var(--rose-border), transparent); }
+.ps-2 .pipe-service { color: var(--rose); }
+.ps-2 .ptag { background: var(--rose-bg); color: var(--rose); border: 1px solid var(--rose-border); }
+
+.ps-3 .pipe-badge { background: var(--flame-bg); color: var(--flame); border: 1px solid var(--flame-border); }
+.ps-3 .pipe-line  { background: linear-gradient(to bottom, var(--flame-border), transparent); }
+.ps-3 .pipe-service { color: var(--flame); }
+.ps-3 .ptag { background: var(--flame-bg); color: var(--flame); border: 1px solid var(--flame-border); }
+
+.ps-4 .pipe-badge { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+.ps-4 .pipe-line  { background: linear-gradient(to bottom, var(--gold-border), transparent); }
+.ps-4 .pipe-service { color: var(--gold); }
+.ps-4 .ptag { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+
+.ps-5 .pipe-badge { background: var(--violet-bg); color: var(--violet); border: 1px solid var(--violet-border); }
+.ps-5 .pipe-line  { background: linear-gradient(to bottom, var(--violet-border), transparent); }
+.ps-5 .pipe-service { color: var(--violet); }
+.ps-5 .ptag { background: var(--violet-bg); color: var(--violet); border: 1px solid var(--violet-border); }
+
+.ps-6 .pipe-badge { background: var(--signal-bg); color: var(--signal); border: 1px solid var(--signal-border); }
+.ps-6 .pipe-line  { background: linear-gradient(to bottom, var(--signal-border), transparent); }
+.ps-6 .pipe-service { color: var(--signal); }
+.ps-6 .ptag { background: var(--signal-bg); color: var(--signal); border: 1px solid var(--signal-border); }
+
+.ps-7 .pipe-badge { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+.ps-7 .pipe-line  { background: transparent; }
+.ps-7 .pipe-service { color: var(--sky); }
+.ps-7 .ptag { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+
+/* ── SCHEMA ── */
+.schema-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.schema-card {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.schema-head {
+  padding: 12px 16px;
+  background: var(--ink3);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schema-icon { font-size: 14px; }
+
+.schema-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.schema-row:last-child { border-bottom: none; }
+
+.srf { font-family: var(--mono); color: var(--white2); }
+.srt { font-family: var(--mono); font-size: 10px; color: var(--fog3); }
+.srpk { font-family: var(--mono); font-size: 10px; background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); padding: 1px 7px; border-radius: 4px; }
+.srfk { font-family: var(--mono); font-size: 10px; background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); padding: 1px 7px; border-radius: 4px; }
+
+/* ── PHASES ── */
+.phase-list { display: flex; flex-direction: column; gap: 0; }
+
+.phase-item {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.phase-item:hover { border-color: var(--line2); }
+
+.phase-hdr {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px;
+  cursor: default;
+}
+
+.phase-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ph-done { background: var(--signal-bg); color: var(--signal); border: 1px solid var(--signal-border); }
+.ph-partial { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+.ph-next { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+
+.phase-title-text { font-size: 15px; font-weight: 600; color: var(--white); }
+.phase-subtitle { font-size: 12px; color: var(--fog2); margin-top: 2px; font-family: var(--mono); }
+
+.phase-status {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.pst-done { background: var(--signal-bg); color: var(--signal); border: 1px solid var(--signal-border); }
+.pst-partial { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+.pst-next { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+
+.phase-body { padding: 0 24px 24px; }
+
+.phase-pipe {
+  background: var(--ink3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fog);
+  margin-bottom: 16px;
+  line-height: 1.8;
+}
+
+.phase-pipe .pp-step { color: var(--sky); }
+.phase-pipe .pp-arrow { color: var(--fog3); }
+
+.phase-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pcol {
+  background: var(--ink3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.pcol-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fog3);
+  margin-bottom: 10px;
+}
+
+.pcol-list { list-style: none; }
+.pcol-list li {
+  font-size: 12px;
+  color: var(--fog);
+  padding: 3px 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.pcol-list li::before { content: '—'; color: var(--fog3); flex-shrink: 0; }
+
+/* ── Q&A ── */
+.qa-block { margin-top: 18px; }
+.qa-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--fog3);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qa-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.qa-item {
+  border-left: 2px solid var(--line);
+  padding-left: 16px;
+  margin-bottom: 14px;
+}
+
+.qa-q {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--white2);
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+.qa-qbadge {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--sky-bg);
+  color: var(--sky);
+  border: 1px solid var(--sky-border);
+  padding: 1px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  height: fit-content;
+  margin-top: 2px;
+}
+
+.qa-a {
+  font-size: 13px;
+  color: var(--fog);
+  line-height: 1.7;
+}
+
+/* ── CODE ── */
+.code-block {
+  background: #05060a;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.9;
+  overflow-x: auto;
+  margin: 14px 0;
+  white-space: pre;
+  color: var(--fog);
+}
+
+.ck { color: var(--sky); }       /* keyword */
+.cv { color: var(--signal); }     /* value/string */
+.cc { color: #3d4a60; }          /* comment */
+.cm { color: var(--flame); }     /* command */
+.cp { color: var(--violet); }    /* path */
+.cn { color: var(--white); }     /* name */
+
+/* ── JOURNEY FLOW ── */
+.journey-wrap {
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 36px 32px;
+  counter-reset: step-counter;
+}
+
+.journey-step {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  position: relative;
+  counter-increment: step-counter;
+  padding-bottom: 28px;
+}
+
+.journey-step:last-child { padding-bottom: 0; }
+
+.journey-step::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 38px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--line2), transparent);
+}
+
+.journey-step:last-child::before { display: none; }
+
+.js-num {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--ink3);
+  border: 1px solid var(--line2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fog2);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.js-done .js-num { background: var(--signal-bg); border-color: var(--signal-border); color: var(--signal); }
+.js-next .js-num { background: var(--sky-bg); border-color: var(--sky-border); color: var(--sky); }
+
+.js-content { flex: 1; padding-top: 6px; }
+
+.js-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 4px;
+}
+
+.js-desc { font-size: 13px; color: var(--fog); line-height: 1.65; }
+
+.js-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 6px;
+  background: var(--ink3);
+  color: var(--fog2);
+  border: 1px solid var(--line);
+}
+
+/* ── CHECKLIST ── */
+.check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.check-col h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+
+.check-col-done h4 { color: var(--signal); }
+.check-col-remaining h4 { color: var(--gold); }
+
+.check-list { list-style: none; }
+
+.check-list li {
+  font-size: 13px;
+  color: var(--fog);
+  padding: 7px 12px;
+  margin-bottom: 5px;
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ci-done { border-color: rgba(0,229,160,0.15) !important; }
+.ci-partial { border-color: rgba(251,191,36,0.15) !important; }
+.ci-next { border-color: rgba(56,189,248,0.15) !important; }
+
+.ci-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cd-d { background: var(--signal); }
+.cd-p { background: var(--gold); }
+.cd-n { background: var(--sky); }
+
+/* ── FEATURES TABLE ── */
+.feat-section {
+  margin-bottom: 32px;
+}
+
+.feat-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--fog3);
+  margin-bottom: 12px;
+}
+
+.feat-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.feat-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.feat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.fd-built { background: var(--signal); }
+.fd-planned { background: var(--sky); }
+
+.feat-content { flex: 1; }
+.feat-title { font-size: 13px; font-weight: 500; color: var(--white); margin-bottom: 3px; }
+.feat-desc { font-size: 12px; color: var(--fog2); line-height: 1.55; }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--line);
+  padding: 40px 28px;
+  text-align: center;
+}
+
+.footer-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-logo {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+.footer-text {
+  font-size: 12px;
+  color: var(--fog3);
+  font-family: var(--mono);
+}
+
+/* ── INLINE HIGHLIGHTS ── */
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--ink3);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--sky);
+}
+
+strong { color: var(--white); font-weight: 500; }
+
+.highlight-signal { color: var(--signal); }
+.highlight-sky { color: var(--sky); }
+.highlight-flame { color: var(--flame); }
+
+/* ── BG SEPARATORS ── */
+.bg-alt { background: var(--ink2); }
+.full-border-top { border-top: 1px solid var(--line); }
+.full-border-bot { border-bottom: 1px solid var(--line); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 640px) {
+  .problem-grid, .phase-cols, .schema-wrap,
+  .check-grid, .hero-stats { grid-template-columns: 1fr; }
+  .stack-grid { grid-template-columns: 1fr 1fr; }
+  .vs-strip { grid-template-columns: 1fr; }
+  .vs-mid { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <span class="nav-logo">PRPulse</span>
+    <span class="nav-dot">·</span>
+    <a href="#problem" class="nav-link">Problem</a>
+    <a href="#architecture" class="nav-link">Architecture</a>
+    <a href="#phases" class="nav-link">Phases</a>
+    <a href="#journey" class="nav-link">Journey</a>
+    <a href="#checklist" class="nav-link">Status</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">Event-Driven · Real-Time · Open Source</div>
+
+  <h1 class="hero-title">
+    Pull Request<br><em>Intelligence</em><br>Platform
+  </h1>
+
+  <p class="hero-sub">
+    PRPulse watches your GitHub repository. Every time someone opens a pull request,
+    it automatically figures out how risky that change is — and shows it to your team in real time.
+  </p>
+
+  <div class="hero-tags">
+    <span class="htag htag-s">Python</span>
+    <span class="htag htag-b">FastAPI</span>
+    <span class="htag htag-r">Redis Streams</span>
+    <span class="htag htag-v">PostgreSQL</span>
+    <span class="htag htag-f">React</span>
+    <span class="htag htag-g">Docker</span>
+    <span class="htag htag-s">GitHub Webhooks</span>
+    <span class="htag htag-b">Server-Sent Events</span>
+    <span class="htag htag-v">Async Workers</span>
+  </div>
+
+  <div class="hero-stats">
+    <div class="hstat">
+      <span class="hstat-num" style="color: var(--signal);">6</span>
+      <span class="hstat-label">Phases</span>
+    </div>
+    <div class="hstat">
+      <span class="hstat-num" style="color: var(--sky);">3</span>
+      <span class="hstat-label">Services</span>
+    </div>
+    <div class="hstat">
+      <span class="hstat-num" style="color: var(--flame);">5</span>
+      <span class="hstat-label">API Endpoints</span>
+    </div>
+    <div class="hstat">
+      <span class="hstat-num" style="color: var(--violet);">&lt; 1s</span>
+      <span class="hstat-label">Webhook Response</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- PROBLEM -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top bg-alt">
+<div class="section" id="problem">
+  <div class="section-label">01 — The Problem</div>
+  <h2 class="section-heading">GitHub gives you raw activity.<br>Not intelligence.</h2>
+  <p class="section-intro">
+    Your team merges pull requests every day. GitHub shows you who opened what. But it never tells you:
+    <em>"this PR touches the authentication system"</em> or <em>"this one changed 800 lines across 20 files — it's high risk."</em>
+    You find out about risky merges after things break in production.
+  </p>
+
+  <div class="problem-grid">
+    <div class="prob-card">
+      <span class="prob-icon">🔍</span>
+      <div class="prob-title">No risk visibility</div>
+      <div class="prob-desc">You can't tell from the PR title whether it's a 2-line typo fix or a 500-line overhaul of your core API. Both look the same in GitHub's PR list.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">⏱️</span>
+      <div class="prob-title">No review analytics</div>
+      <div class="prob-desc">Which reviewer responds fastest? Which PRs sit waiting for days? Which engineer carries the most review load? GitHub doesn't answer any of this.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">📉</span>
+      <div class="prob-title">No velocity tracking</div>
+      <div class="prob-desc">Are PRs getting bigger over time? Is merge speed slowing down? Is your team's output improving or declining? You only know if you build something to measure it.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">🐢</span>
+      <div class="prob-title">Delayed reporting</div>
+      <div class="prob-desc">Most tools give you a weekly digest or a dashboard that refreshes every hour. By the time you see a high-risk PR, it may already be merged.</div>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top: 40px; margin-bottom: 16px;">How PRPulse is Different</div>
+
+  <div class="vs-strip">
+    <div class="vs-col">
+      <div class="vs-head vs-head-bad">GitHub alone</div>
+      <ul class="vs-list">
+        <li><span class="vs-x">✗</span>No automated risk scoring</li>
+        <li><span class="vs-x">✗</span>No real-time analysis</li>
+        <li><span class="vs-x">✗</span>No breaking change detection</li>
+        <li><span class="vs-x">✗</span>No reviewer analytics</li>
+        <li><span class="vs-x">✗</span>Raw data only, no insights</li>
+      </ul>
+    </div>
+    <div class="vs-mid">vs</div>
+    <div class="vs-col">
+      <div class="vs-head vs-head-good">PRPulse</div>
+      <ul class="vs-list">
+        <li><span class="vs-ok">✓</span>Automatic risk score on every PR</li>
+        <li><span class="vs-ok">✓</span>Live dashboard via Server-Sent Events</li>
+        <li><span class="vs-ok">✓</span>Detects function changes, route deletions, config edits</li>
+        <li><span class="vs-ok">✓</span>Review time and workload metrics</li>
+        <li><span class="vs-ok">✓</span>Event-driven — no polling, no delay</li>
+      </ul>
+    </div>
+  </div>
+  <p style="font-size: 12px; color: var(--fog3); font-family: var(--mono); margin-top: 8px;">* PRPulse is an analytics and intelligence layer on top of GitHub — not a replacement.</p>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- TECH STACK -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top">
+<div class="section" id="stack">
+  <div class="section-label">02 — Tech Stack</div>
+  <h2 class="section-heading">What we built it with</h2>
+  <p class="section-intro">Each technology was chosen for a specific reason — not just because it's popular.</p>
+
+  <div class="stack-grid">
+    <div class="stack-item">
+      <div class="stack-icon">⚡</div>
+      <div class="stack-name" style="color: var(--sky);">FastAPI</div>
+      <div class="stack-role">Webhook service + Query API</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">Async Python. Can return HTTP 200 in under 50ms while doing nothing heavy.</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">🔴</div>
+      <div class="stack-name" style="color: var(--rose);">Redis Streams</div>
+      <div class="stack-role">Event queue + message bus</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">Messages survive crashes. Consumer groups allow multiple workers. No event is ever lost.</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">⚙️</div>
+      <div class="stack-name" style="color: var(--flame);">Python async worker</div>
+      <div class="stack-role">Analysis pipeline</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">Fetches GitHub data, parses diffs, computes risk scores without blocking.</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">🗃️</div>
+      <div class="stack-name" style="color: var(--violet);">PostgreSQL</div>
+      <div class="stack-role">Persistent storage</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">Stores all PRs, analysis results, and metrics. asyncpg for non-blocking queries.</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">📊</div>
+      <div class="stack-name" style="color: var(--signal);">React + Recharts</div>
+      <div class="stack-role">Live dashboard</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">Connects to SSE endpoint. Updates in real time without page refresh. Vite + TypeScript.</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">🐳</div>
+      <div class="stack-name" style="color: var(--sky);">Docker Compose</div>
+      <div class="stack-role">Runs everything with one command</div>
+      <div class="stack-role" style="font-size: 11px; margin-top: 6px; color: var(--fog3);">All 5 services — postgres, redis, webhook, worker, api — start together.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- ARCHITECTURE -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top bg-alt">
+<div class="section" id="architecture">
+  <div class="section-label">03 — Architecture</div>
+  <h2 class="section-heading">The pipeline, step by step</h2>
+  <p class="section-intro">
+    PRPulse uses an event-driven architecture. No service talks to another service directly.
+    They communicate through Redis Streams — which means if one crashes, the others keep running and no data is lost.
+  </p>
+
+  <div class="pipe-container">
+
+    <div class="pipe-step ps-1">
+      <div class="pipe-left">
+        <div class="pipe-badge">01</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">GitHub</div>
+        <div class="pipe-title">Developer opens a Pull Request</div>
+        <div class="pipe-desc">A developer pushes code and opens a PR on GitHub. GitHub automatically fires a webhook — a POST request — to any URL you tell it to. PRPulse registers its webhook URL when you install the GitHub App.</div>
+        <div class="pipe-tags">
+          <span class="ptag">pull_request.opened</span>
+          <span class="ptag">JSON payload</span>
+          <span class="ptag">HMAC signature</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-2">
+      <div class="pipe-left">
+        <div class="pipe-badge">02</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">Webhook Service — FastAPI :8000</div>
+        <div class="pipe-title">Receive, validate, and publish to Redis</div>
+        <div class="pipe-desc">The webhook service receives the POST from GitHub. It extracts the PR number from the JSON body, then calls <code>XADD prpulse:events:raw</code> to publish the event into the Redis Stream. It returns HTTP 200 in under 50ms. That's it — it does nothing else. No database. No analysis. Just write to Redis and respond fast.</div>
+        <div class="pipe-tags">
+          <span class="ptag">XADD prpulse:events:raw</span>
+          <span class="ptag">HTTP 200 in &lt;50ms</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-3">
+      <div class="pipe-left">
+        <div class="pipe-badge">03</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">Redis Streams</div>
+        <div class="pipe-title">Event waits in the queue</div>
+        <div class="pipe-desc">The event now sits in <code>prpulse:events:raw</code>, a Redis Stream. Think of it like a logbook — entries are written in order and stay there until processed. Even if the worker is busy or crashed, this event will not disappear. Redis tracks which messages have been "picked up but not confirmed" in a Pending Entries List (PEL). If the worker crashes mid-processing, the event is reclaimed automatically after 60 seconds.</div>
+        <div class="pipe-tags">
+          <span class="ptag">Pending Entries List</span>
+          <span class="ptag">Consumer Group</span>
+          <span class="ptag">Never lost</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-4">
+      <div class="pipe-left">
+        <div class="pipe-badge">04</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">Analysis Worker — Python async loop</div>
+        <div class="pipe-title">Pick up the event, fetch PR data, analyze</div>
+        <div class="pipe-desc">The worker runs an infinite loop calling <code>XREADGROUP</code>. When it sees a new message, it picks it up. Then it calls the GitHub API to get the full PR — metadata (author, title) and all changed files with their diffs. It runs those through the diff parser and risk scorer. If GitHub's API fails, it retries up to 3 times with increasing delays (1s → 2s → 4s). If all retries fail, the event goes to the Dead Letter Queue.</div>
+        <div class="pipe-tags">
+          <span class="ptag">XREADGROUP</span>
+          <span class="ptag">GitHub API</span>
+          <span class="ptag">Pagination (100 files/page)</span>
+          <span class="ptag">3 retries + backoff</span>
+          <span class="ptag">DLQ on failure</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-5">
+      <div class="pipe-left">
+        <div class="pipe-badge">05</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">Diff Parser + Risk Scorer</div>
+        <div class="pipe-title">What changed? How risky is it?</div>
+        <div class="pipe-desc">
+          The diff parser looks at every file's patch text. It counts lines added and removed. It detects four types of signals: a config file was changed, a large chunk of code was rewritten, a function signature was modified, or an API route was deleted. Then the risk scorer adds points for each signal found and classifies the PR as <strong style="color: var(--signal);">LOW</strong>, <strong style="color: var(--gold);">MEDIUM</strong>, or <strong style="color: var(--rose);">HIGH</strong> risk.
+        </div>
+        <div class="code-block" style="margin: 12px 0;"><span class="ck">config file changed</span>      <span class="cc">→ +15 points</span>
+<span class="ck">lines_added &gt; 300</span>         <span class="cc">→ +20 points</span>
+<span class="ck">lines_removed &gt; 200</span>       <span class="cc">→ +10 points</span>
+<span class="ck">any breaking change found</span>  <span class="cc">→ +40 points</span>
+<span class="ck">files_changed &gt; 10</span>         <span class="cc">→ +15 points</span>
+<span class="cc">────────────────────────────────────</span>
+0–30  <span class="cv">LOW</span>  │  31–60  <span class="cn">MEDIUM</span>  │  61–100  <span class="cm">HIGH</span></div>
+        <div class="pipe-tags">
+          <span class="ptag">4 signal types</span>
+          <span class="ptag">Additive scoring</span>
+          <span class="ptag">Deduplication</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-6">
+      <div class="pipe-left">
+        <div class="pipe-badge">06</div>
+        <div class="pipe-line"></div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">PostgreSQL — Persistence</div>
+        <div class="pipe-title">Write results to database, then acknowledge</div>
+        <div class="pipe-desc">The worker writes two rows to PostgreSQL: one in <code>pull_requests</code> (PR number, author, repo) and one in <code>pr_analysis</code> (lines changed, risk score, risk level). The database enforces a foreign key — <code>pr_analysis.pr_number</code> must exist in <code>pull_requests</code> first. After both rows are committed, the worker calls <code>XACK</code> to tell Redis the message is done. <strong>XACK only fires after the DB write succeeds.</strong> This ordering guarantees nothing is lost even if the worker crashes between writing and acknowledging.</div>
+        <div class="pipe-tags">
+          <span class="ptag">ON CONFLICT DO NOTHING</span>
+          <span class="ptag">Foreign key enforced</span>
+          <span class="ptag">XACK after DB write</span>
+          <span class="ptag">asyncpg pool</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-step ps-7">
+      <div class="pipe-left">
+        <div class="pipe-badge">07</div>
+      </div>
+      <div class="pipe-content">
+        <div class="pipe-service">Query API + Dashboard — Coming in Phase 6</div>
+        <div class="pipe-title">Read data, stream live updates</div>
+        <div class="pipe-desc">The Query API (FastAPI :8001) reads from PostgreSQL and exposes REST endpoints for PR lists, risk distributions, and metrics. After the worker persists a result, it also publishes to <code>prpulse:notifications</code>. A broadcaster reads that stream and pushes events to all connected dashboard clients via Server-Sent Events. The React dashboard shows a live PR feed — new PRs appear automatically when analyzed, no refresh needed.</div>
+        <div class="pipe-tags">
+          <span class="ptag">REST API</span>
+          <span class="ptag">SSE /events/stream</span>
+          <span class="ptag">React + EventSource</span>
+          <span class="ptag">Live PR feed</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- SCHEMA -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top">
+<div class="section" id="schema">
+  <div class="section-label">04 — Database Schema</div>
+  <h2 class="section-heading">What we store in PostgreSQL</h2>
+  <p class="section-intro">
+    Two tables, one relationship. Simple and deliberate.
+    The foreign key between them is the guarantee that analysis data always has a parent PR.
+  </p>
+
+  <div class="schema-wrap">
+    <div class="schema-card">
+      <div class="schema-head" style="color: var(--violet);">
+        <span class="schema-icon">🗂️</span> pull_requests
+      </div>
+      <div class="schema-row"><span class="srf">id</span><span class="srpk">PK · SERIAL</span></div>
+      <div class="schema-row"><span class="srf">pr_number</span><span class="srt">INT · UNIQUE</span></div>
+      <div class="schema-row"><span class="srf">author</span><span class="srt">TEXT</span></div>
+      <div class="schema-row"><span class="srf">repo_owner</span><span class="srt">TEXT</span></div>
+      <div class="schema-row"><span class="srf">repo_name</span><span class="srt">TEXT</span></div>
+      <div class="schema-row"><span class="srf">files_changed</span><span class="srt">INT</span></div>
+      <div class="schema-row"><span class="srf">created_at</span><span class="srt">TIMESTAMP</span></div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-head" style="color: var(--flame);">
+        <span class="schema-icon">📊</span> pr_analysis
+      </div>
+      <div class="schema-row"><span class="srf">id</span><span class="srpk">PK · SERIAL</span></div>
+      <div class="schema-row"><span class="srf">pr_number</span><span class="srfk">FK → pull_requests</span></div>
+      <div class="schema-row"><span class="srf">files_changed</span><span class="srt">INT</span></div>
+      <div class="schema-row"><span class="srf">lines_added</span><span class="srt">INT</span></div>
+      <div class="schema-row"><span class="srf">lines_removed</span><span class="srt">INT</span></div>
+      <div class="schema-row"><span class="srf">risk_score</span><span class="srt">FLOAT</span></div>
+      <div class="schema-row"><span class="srf">risk_level</span><span class="srt">TEXT — LOW/MEDIUM/HIGH</span></div>
+      <div class="schema-row"><span class="srf">analyzed_at</span><span class="srt">TIMESTAMP</span></div>
+    </div>
+  </div>
+
+  <div style="background: var(--ink2); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-top: 12px; font-size: 13px; color: var(--fog); line-height: 1.75;">
+    <strong>Why two tables?</strong> A PR is a fact — it was opened at a moment in time. Analysis is computed later, potentially re-computed if the formula changes. Separating them means we can update risk scoring logic and reprocess PRs without touching the original PR data. The <code>UNIQUE</code> on <code>pr_number</code> combined with <code>ON CONFLICT DO NOTHING</code> makes the insert idempotent — safe to retry as many times as needed.
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- PHASES -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top bg-alt">
+<div class="section" id="phases">
+  <div class="section-label">05 — Development Phases</div>
+  <h2 class="section-heading">6 phases. One complete system.</h2>
+  <p class="section-intro">
+    The project is split into 6 phases. Each phase is independently runnable and testable.
+    You can stop at any phase and have a working (partial) system.
+  </p>
+
+  <div class="phase-list">
+
+    <!-- P1 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-done">Phase 1</div>
+        <div>
+          <div class="phase-title-text">Webhook Ingestion → Redis Stream</div>
+          <div class="phase-subtitle">Webhook service · Redis · XADD · HTTP 200 fast response</div>
+        </div>
+        <div class="phase-status pst-done">✓ Complete</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">GitHub</span>
+          <span class="pp-arrow"> ──POST /webhook──▶ </span>
+          <span class="pp-step">FastAPI</span>
+          <span class="pp-arrow"> ──XADD──▶ </span>
+          <span class="pp-step">prpulse:events:raw</span>
+          <span class="pp-arrow"> ──HTTP 200──▶ </span>
+          <span class="pp-step">GitHub</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">What was built</div>
+            <ul class="pcol-list">
+              <li>FastAPI webhook server on port 8000</li>
+              <li>POST /webhook extracts pr_number from JSON</li>
+              <li>XADD writes event to Redis Stream</li>
+              <li>GET /health endpoint for monitoring</li>
+              <li>Response time under 50ms</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">Why this design</div>
+            <ul class="pcol-list">
+              <li>GitHub times out if no response in seconds</li>
+              <li>Heavy work (GitHub API, DB writes) would be too slow here</li>
+              <li>Write-to-Redis is microseconds. Database is not.</li>
+              <li>Decoupling webhook from analysis = both can scale separately</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 1</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What is a webhook and how does GitHub use it?</div>
+            <div class="qa-a">A webhook is just an HTTP POST that GitHub sends to your URL whenever something happens in your repo — like someone opening a PR. It's GitHub's way of saying "hey, something just happened, here's the data." Your server receives it, does something with it, and returns HTTP 200 to say "got it." If you return an error or take too long, GitHub thinks delivery failed and retries.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>Why not just process the PR directly inside the webhook handler?</div>
+            <div class="qa-a">Processing a PR means calling GitHub's API twice (metadata + files), parsing diffs, running scoring, and writing to the database. That could take 5–10 seconds. GitHub expects a response in 1–2 seconds max. If you exceed that, GitHub marks the delivery as failed and starts retrying. By writing to Redis and returning 200 immediately, the webhook handler is always fast. The actual analysis happens in the background.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What is Redis Streams and how is it different from a normal Redis list?</div>
+            <div class="qa-a">A Redis List is like a queue — once you pop an item, it's gone. Redis Streams is like a logbook — entries stay even after they're read. This matters for reliability: if the worker crashes while processing message #5, that message stays in the Pending Entries List and gets retried. With a plain list, it would be gone forever. Streams also have Consumer Groups, which let multiple workers share the load without processing the same message twice.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P2 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-done">Phase 2</div>
+        <div>
+          <div class="phase-title-text">Redis Streams Consumer Worker</div>
+          <div class="phase-subtitle">XREADGROUP · Consumer groups · XAUTOCLAIM crash recovery</div>
+        </div>
+        <div class="phase-status pst-done">✓ Complete</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">prpulse:events:raw</span>
+          <span class="pp-arrow"> ──XREADGROUP──▶ </span>
+          <span class="pp-step">Worker loop</span>
+          <span class="pp-arrow"> ──process──▶ </span>
+          <span class="pp-step">_handle_message()</span>
+          <span class="pp-arrow"> ──success──▶ </span>
+          <span class="pp-step">XACK</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">What was built</div>
+            <ul class="pcol-list">
+              <li>Infinite XREADGROUP consume loop</li>
+              <li>Consumer group: prpulse-analysis-workers</li>
+              <li>Retry logic: 3 attempts with 1s→2s→4s backoff</li>
+              <li>Dead Letter Queue to prpulse:events:failed</li>
+              <li>XAUTOCLAIM background task every 30s</li>
+              <li>ACK fires only after DB write succeeds</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">Crash safety explained</div>
+            <ul class="pcol-list">
+              <li>Worker reads message → moves to PEL (pending)</li>
+              <li>Worker processes, writes to DB</li>
+              <li>Only then: XACK removes from PEL</li>
+              <li>If crash happens between read and ack → message stays in PEL</li>
+              <li>XAUTOCLAIM reclaims stuck PEL messages after 60s</li>
+              <li>Reprocessed through the same pipeline</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 2</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What is the Pending Entries List (PEL)?</div>
+            <div class="qa-a">When XREADGROUP delivers a message to a worker, Redis moves that message to the PEL — a list of "in-flight" messages. The message stays there until the worker calls XACK to confirm it was processed. If the worker crashes before calling XACK, the message is stuck in the PEL. Our recovery loop calls XAUTOCLAIM every 30 seconds to find messages idle in the PEL for over 60 seconds and reclaims them for reprocessing. Nothing is ever permanently lost.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>Why does XACK fire AFTER the database write and not before?</div>
+            <div class="qa-a">If you call XACK before writing to the database, and then the database write fails, you've told Redis "done" but actually nothing was saved. The message won't be retried because Redis thinks it succeeded. By calling XACK only after a successful DB write, we guarantee that every acknowledged message is also saved. If the DB write fails, XACK is never called, the message stays in the PEL, and the recovery loop retries it.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What happens after all 3 retries fail?</div>
+            <div class="qa-a">The message is written to a separate Redis stream called <code>prpulse:events:failed</code> — the Dead Letter Queue. This stream stores the error message, how many retries were attempted, and the original PR number. The original message is then XACK'd so it doesn't block other messages. A developer can later read the DLQ, fix the root cause, and replay those events manually.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P3 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-done">Phase 3</div>
+        <div>
+          <div class="phase-title-text">PR Analysis Engine — Diff + Risk Scoring</div>
+          <div class="phase-subtitle">GitHub API · Pagination · Diff parser · Risk scorer · Typed models</div>
+        </div>
+        <div class="phase-status pst-done">✓ Complete</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">Worker</span>
+          <span class="pp-arrow"> ──GitHub API──▶ </span>
+          <span class="pp-step">PR metadata + files</span>
+          <span class="pp-arrow"> ──parse──▶ </span>
+          <span class="pp-step">Diff signals</span>
+          <span class="pp-arrow"> ──score──▶ </span>
+          <span class="pp-step">LOW / MEDIUM / HIGH</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">Breaking change signals detected</div>
+            <ul class="pcol-list">
+              <li><code>config_file_change</code> — .env, settings.yaml etc</li>
+              <li><code>large_file_change</code> — 200+ lines in one file</li>
+              <li><code>function_signature_change</code> — def removed + re-added</li>
+              <li><code>route_deleted</code> — @app.route removed from diff</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">How pagination works</div>
+            <ul class="pcol-list">
+              <li>GitHub returns max 100 files per page</li>
+              <li>If page has 100 files → fetch next page</li>
+              <li>If page has fewer → done, last page</li>
+              <li>All pages merged into one flat list</li>
+              <li>250-file PR = pages 1(100) + 2(100) + 3(50)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 3</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>How does the diff parser detect a function signature change?</div>
+            <div class="qa-a">GitHub gives us the raw "patch" text for each modified file. Lines starting with "-" were removed, lines starting with "+" were added. The parser runs a regex looking for removed lines containing "def function_name(" (Python) or "function name(" (JavaScript). If it finds a removed definition AND an added definition in the same patch, it flags this as a function signature change — meaning the function parameters may have changed, breaking callers.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>Why does the GitHub client reuse one httpx.AsyncClient?</div>
+            <div class="qa-a">Creating a new HTTP client every time means creating a new TCP connection to GitHub's servers for every API call — which includes a "handshake" that adds 100–300ms latency. A shared client keeps the TCP connection alive (connection pooling) and reuses it. For a worker that may process hundreds of PRs, this is significantly faster. It's created once at startup and reused for the entire process lifetime.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P4 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-done">Phase 4</div>
+        <div>
+          <div class="phase-title-text">Persistence + Reliability</div>
+          <div class="phase-subtitle">PostgreSQL · asyncpg pool · Idempotent inserts · Full retry pipeline</div>
+        </div>
+        <div class="phase-status pst-done">✓ Complete</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">PRAnalysis result</span>
+          <span class="pp-arrow"> ──insert PR row──▶ </span>
+          <span class="pp-step">pull_requests</span>
+          <span class="pp-arrow"> ──insert analysis──▶ </span>
+          <span class="pp-step">pr_analysis</span>
+          <span class="pp-arrow"> ──then──▶ </span>
+          <span class="pp-step">XACK</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">What makes it reliable</div>
+            <ul class="pcol-list">
+              <li>asyncpg connection pool (min=2, max=10)</li>
+              <li>Schema created automatically at startup</li>
+              <li>PR insert: ON CONFLICT DO NOTHING (idempotent)</li>
+              <li>Analysis FK prevents orphan rows</li>
+              <li>XACK only after both rows committed</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">Smart input validation</div>
+            <ul class="pcol-list">
+              <li>Malformed pr_number caught before retry loop</li>
+              <li>Saves 3 wasted retry attempts on bad input</li>
+              <li>Invalid input discarded + ACK'd immediately</li>
+              <li>Genuine failures (network, DB) go through retries</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 4</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What does idempotent mean and why does it matter for inserts?</div>
+            <div class="qa-a">Idempotent means "you can run the same operation 10 times and get the same result as running it once." Our insert is idempotent because of <code>ON CONFLICT DO NOTHING</code>. If the worker retries a PR it already processed, the second INSERT just silently skips without error. Without this, the DB would throw a duplicate key error and the message would keep retrying forever, always failing at the insert step. Idempotency makes retry logic safe.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>Why is malformed input (like pr_number = "abc") checked before the retry loop?</div>
+            <div class="qa-a">If "abc" reaches the retry loop, each attempt will fail with <code>ValueError: invalid literal for int()</code> — a permanent error that retrying will never fix. Without the early check, all 3 retry slots get burned on an unrecoverable input error with 3 useless backoff waits. By catching it before the loop, we discard it cleanly with one XACK and move on immediately. This is the difference between a smart system and a system that wastes time on bad data.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P5 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-partial">Phase 5</div>
+        <div>
+          <div class="phase-title-text">Query API — REST Endpoints</div>
+          <div class="phase-subtitle">FastAPI :8001 · asyncpg · Layered architecture · Pydantic schemas</div>
+        </div>
+        <div class="phase-status pst-partial">⚠ Mostly Done</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">PostgreSQL</span>
+          <span class="pp-arrow"> ──asyncpg──▶ </span>
+          <span class="pp-step">Repository layer</span>
+          <span class="pp-arrow"> ──▶ </span>
+          <span class="pp-step">Service layer</span>
+          <span class="pp-arrow"> ──▶ </span>
+          <span class="pp-step">Router (HTTP)</span>
+          <span class="pp-arrow"> ──JSON──▶ </span>
+          <span class="pp-step">Client</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">Endpoints built</div>
+            <ul class="pcol-list">
+              <li>GET /repos — list all tracked repos</li>
+              <li>GET /repos/{id}/prs — paginated PR list</li>
+              <li>GET /repos/{id}/metrics — totals and averages</li>
+              <li>GET /repos/{id}/risk-distribution — LOW/MED/HIGH counts</li>
+              <li>GET /repos/{id}/review-performance</li>
+              <li>GET /health</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">Remaining for Phase 5 completion</div>
+            <ul class="pcol-list">
+              <li>Fill <code>shared/redis/client.py</code> (empty file)</li>
+              <li>Fill <code>shared/redis/constants.py</code> (empty file)</li>
+              <li>Add webhook + worker to docker-compose.yml</li>
+              <li>Run full end-to-end Docker test</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 5</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>Why is the API split into Router, Service, and Repository layers?</div>
+            <div class="qa-a">Each layer has exactly one job. The Router handles HTTP (receives request, returns response) — no SQL, no business logic. The Service applies business rules (which repo to look up, how to format results) — no HTTP, no SQL. The Repository writes raw SQL and talks to the database — nothing else. If you switch from PostgreSQL to a different database, you only change the Repository layer. The Router and Service don't care what database is behind it. This separation makes the code easier to test and change.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What is an asyncpg connection pool and why is it better than one connection?</div>
+            <div class="qa-a">A connection pool is a group of database connections that are created once and reused. Creating a new database connection for every HTTP request is slow (takes ~50ms). With a pool of 10 connections, up to 10 requests can query the database simultaneously without waiting. When a request finishes, its connection goes back to the pool for the next request. This is how production APIs handle hundreds of concurrent users without slowing down.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P6 -->
+    <div class="phase-item">
+      <div class="phase-hdr">
+        <div class="phase-num ph-next">Phase 6</div>
+        <div>
+          <div class="phase-title-text">Real-Time Dashboard — React + SSE</div>
+          <div class="phase-subtitle">Server-Sent Events · React · Live PR feed · Risk charts</div>
+        </div>
+        <div class="phase-status pst-next">→ Up Next</div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-pipe">
+          <span class="pp-step">Worker</span>
+          <span class="pp-arrow"> ──XADD notifications──▶ </span>
+          <span class="pp-step">SSE broadcaster</span>
+          <span class="pp-arrow"> ──/events/stream──▶ </span>
+          <span class="pp-step">React</span>
+          <span class="pp-arrow"> ──EventSource──▶ </span>
+          <span class="pp-step">Live PR feed</span>
+        </div>
+        <div class="phase-cols">
+          <div class="pcol">
+            <div class="pcol-head">What will be built</div>
+            <ul class="pcol-list">
+              <li>Worker publishes to prpulse:notifications after persist</li>
+              <li>SSE endpoint: GET /events/stream in API service</li>
+              <li>Per-client asyncio.Queue for event delivery</li>
+              <li>React app (Vite + TypeScript)</li>
+              <li>Live PR feed with risk badges (green/amber/red)</li>
+              <li>Risk distribution donut chart</li>
+              <li>Weekly velocity line chart (Recharts)</li>
+            </ul>
+          </div>
+          <div class="pcol">
+            <div class="pcol-head">Why SSE over WebSockets</div>
+            <ul class="pcol-list">
+              <li>Dashboard only needs to receive data (one-way)</li>
+              <li>WebSockets = two-way, more complex, overkill here</li>
+              <li>SSE = simple HTTP, browser auto-reconnects</li>
+              <li>Works with any HTTP/1.1 server or proxy</li>
+              <li>Simpler code, same real-time result</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qa-block">
+          <div class="qa-label">Q &amp; A — Phase 6</div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>What are Server-Sent Events (SSE) and how do they work?</div>
+            <div class="qa-a">SSE is a way for a server to push data to a browser over a regular HTTP connection that never closes. The browser calls a URL (like <code>/events/stream</code>) and gets a response with Content-Type: <code>text/event-stream</code>. The server keeps this connection open and sends chunks of data formatted as <code>data: {...}\n\n</code>. Every time the server sends a chunk, the browser fires a JavaScript event. It's simpler than WebSockets because it's just one-way (server → browser) and built on plain HTTP.</div>
+          </div>
+
+          <div class="qa-item">
+            <div class="qa-q"><span class="qa-qbadge">Q</span>When the dashboard loads, how does it show existing PRs that were analyzed before the page opened?</div>
+            <div class="qa-a">SSE only delivers future events — it doesn't replay history. So the dashboard does two things on load: first, it calls <code>GET /repos/{id}/prs</code> via a normal REST API call to load existing PRs from the database. Second, it opens an SSE connection to <code>/events/stream</code> for new ones going forward. Both together give the complete picture: historical data from the REST call, live updates from SSE.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end phase-list -->
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- FULL JOURNEY -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top">
+<div class="section" id="journey">
+  <div class="section-label">06 — Full Data Journey</div>
+  <h2 class="section-heading">From "PR opened" to<br>"dashboard shows risk score"</h2>
+  <p class="section-intro">
+    Here is exactly what happens at the system level, step by step,
+    from the moment a developer opens a pull request.
+  </p>
+
+  <div class="journey-wrap">
+
+    <div class="journey-step js-done">
+      <div class="js-num">1</div>
+      <div class="js-content">
+        <div class="js-title">Developer opens a PR on GitHub</div>
+        <div class="js-desc">Code is pushed to a branch, a pull request is created via the GitHub UI or <code>git push</code>.</div>
+        <span class="js-tag">GitHub UI / git CLI</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">2</div>
+      <div class="js-content">
+        <div class="js-title">GitHub fires a webhook POST to PRPulse</div>
+        <div class="js-desc">GitHub sends a POST request to the registered webhook URL with the PR payload (JSON containing pr_number, author, repo, etc.) and an HMAC-SHA256 signature header for security.</div>
+        <span class="js-tag">POST /webhook  ·  X-GitHub-Event: pull_request</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">3</div>
+      <div class="js-content">
+        <div class="js-title">Webhook service extracts pr_number → writes to Redis</div>
+        <div class="js-desc">FastAPI handler reads the JSON body, gets pr_number. Calls <code>XADD prpulse:events:raw {"event_type": "pr.opened", "pr_number": "42"}</code>. Redis assigns it a unique stream ID based on the current timestamp.</div>
+        <span class="js-tag">XADD prpulse:events:raw  ·  ~2ms</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">4</div>
+      <div class="js-content">
+        <div class="js-title">Webhook service returns HTTP 200 to GitHub</div>
+        <div class="js-desc">Total time for steps 2→3→4 is under 50ms. GitHub receives 200, marks delivery as successful, and closes the connection. GitHub never needs to retry this delivery.</div>
+        <span class="js-tag">HTTP 200  ·  &lt;50ms total</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">5</div>
+      <div class="js-content">
+        <div class="js-title">Worker picks up the event from Redis Streams</div>
+        <div class="js-desc">The worker's XREADGROUP loop (blocking, checks every 5 seconds) sees the new message and picks it up. The message moves to the Pending Entries List — it is now "in progress." If the worker crashes here, the recovery loop reclaims it after 60 seconds.</div>
+        <span class="js-tag">XREADGROUP  ·  message → PEL</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">6</div>
+      <div class="js-content">
+        <div class="js-title">Worker calls GitHub API: fetch PR metadata</div>
+        <div class="js-desc"><code>GET /repos/{owner}/{repo}/pulls/42</code> — returns the full PR object: title, author, created_at, base branch, head branch, and the diff URLs. The single reused httpx.AsyncClient sends this over an existing TCP connection.</div>
+        <span class="js-tag">GitHub REST API  ·  GET /pulls/42</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">7</div>
+      <div class="js-content">
+        <div class="js-title">Worker calls GitHub API: fetch all changed files (with pagination)</div>
+        <div class="js-desc"><code>GET /repos/{owner}/{repo}/pulls/42/files?per_page=100</code> — returns each file with its patch text (the diff). If the PR touches more than 100 files, the worker fetches page 2, page 3, etc., until all files are collected.</div>
+        <span class="js-tag">GET /pulls/42/files  ·  pagination  ·  patch text</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">8</div>
+      <div class="js-content">
+        <div class="js-title">Diff parser analyzes each file</div>
+        <div class="js-desc">For every file: count lines added ("+") and removed ("-"). Check filename patterns for config file changes. Check line thresholds for large file changes. Run regex on patch text for function signature changes and route deletions. Deduplicate by (signal_type, filename) pairs.</div>
+        <span class="js-tag">4 signal types  ·  deduplication</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">9</div>
+      <div class="js-content">
+        <div class="js-title">Risk scorer assigns a score and level</div>
+        <div class="js-desc">Add up points: +15 for many files, +20 for large additions, +10 for large deletions, +40 if any breaking change was found, +15 if a config file changed. Clamp result to 0–100. Classify: 0–30 = LOW, 31–60 = MEDIUM, 61–100 = HIGH.</div>
+        <span class="js-tag">Additive rules  ·  LOW / MEDIUM / HIGH</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">10</div>
+      <div class="js-content">
+        <div class="js-title">Worker writes to PostgreSQL (two rows)</div>
+        <div class="js-desc">First: <code>INSERT INTO pull_requests (pr_number, author, repo_owner, repo_name) ON CONFLICT DO NOTHING</code>. Then: <code>INSERT INTO pr_analysis (pr_number, lines_added, lines_removed, risk_score, risk_level)</code>. Both writes happen in this order — FK constraint on pr_analysis requires pull_requests to exist first.</div>
+        <span class="js-tag">INSERT ON CONFLICT DO NOTHING  ·  FK enforced</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-done">
+      <div class="js-num">11</div>
+      <div class="js-content">
+        <div class="js-title">Worker calls XACK — message is done</div>
+        <div class="js-desc">Only now, after both DB writes commit successfully, does the worker call <code>XACK prpulse:events:raw prpulse-analysis-workers {message_id}</code>. This removes the message from the Pending Entries List permanently. If DB writes failed, XACK is never called and the message will be retried.</div>
+        <span class="js-tag">XACK  ·  message removed from PEL</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-next">
+      <div class="js-num">12</div>
+      <div class="js-content">
+        <div class="js-title">[Phase 6] Worker publishes to notifications stream</div>
+        <div class="js-desc">After XACK, the worker calls <code>XADD prpulse:notifications {pr_number, risk_level, risk_score, author}</code>. This is a separate stream for broadcasting to connected dashboard clients. The SSE broadcaster reads this stream continuously.</div>
+        <span class="js-tag">Phase 6  ·  prpulse:notifications</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-next">
+      <div class="js-num">13</div>
+      <div class="js-content">
+        <div class="js-title">[Phase 6] SSE broadcaster pushes to connected clients</div>
+        <div class="js-desc">A background task in the API service reads from prpulse:notifications. For each event, it writes a formatted SSE frame to every connected client's queue: <code>data: {"pr_number": 42, "risk_level": "HIGH", "risk_score": 75}\n\n</code>.</div>
+        <span class="js-tag">Phase 6  ·  SSE frame  ·  asyncio.Queue per client</span>
+      </div>
+    </div>
+
+    <div class="journey-step js-next">
+      <div class="js-num">14</div>
+      <div class="js-content">
+        <div class="js-title">[Phase 6] React dashboard displays the PR card</div>
+        <div class="js-desc">The browser's EventSource fires a message event. React state is updated. A new PR card appears in the live feed with a red "HIGH" badge, the author's name, and lines changed. No page refresh. No polling. The whole journey — PR opened to card on screen — takes under 5 seconds.</div>
+        <span class="js-tag">Phase 6  ·  EventSource  ·  React state update</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- CHECKLIST -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top bg-alt">
+<div class="section" id="checklist">
+  <div class="section-label">07 — Current Status</div>
+  <h2 class="section-heading">What's built. What's next.</h2>
+  <p class="section-intro">The project is at the end of Phase 5 with 3 small gaps remaining before Phase 6 begins.</p>
+
+  <div class="check-grid">
+    <div class="check-col check-col-done">
+      <h4>✓ Completed</h4>
+      <ul class="check-list">
+        <li class="ci-done"><span class="ci-dot cd-d"></span>GitHub App registered and installed</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Webhook service receives PR events</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Redis Stream XADD on each webhook</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Consumer group + XREADGROUP loop</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>XAUTOCLAIM crash recovery (30s interval)</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>3-attempt retry with exponential backoff</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Dead Letter Queue (prpulse:events:failed)</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>GitHub API client with pagination</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Diff parser (4 signal types)</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Risk scorer with classification</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>PostgreSQL schema + asyncpg pool</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Idempotent inserts (ON CONFLICT)</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Query API — 5 REST endpoints</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Layered architecture (router → service → repo)</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>Pydantic response schemas</li>
+        <li class="ci-done"><span class="ci-dot cd-d"></span>docker-compose (partial)</li>
+      </ul>
+    </div>
+    <div class="check-col check-col-remaining">
+      <h4>⚠ Remaining — Phase 5 finish</h4>
+      <ul class="check-list" style="margin-bottom: 16px;">
+        <li class="ci-partial"><span class="ci-dot cd-p"></span>Fill shared/redis/client.py (currently empty)</li>
+        <li class="ci-partial"><span class="ci-dot cd-p"></span>Fill shared/redis/constants.py (currently empty)</li>
+        <li class="ci-partial"><span class="ci-dot cd-p"></span>Add webhook + worker to docker-compose.yml</li>
+        <li class="ci-partial"><span class="ci-dot cd-p"></span>End-to-end Docker test: docker compose up</li>
+      </ul>
+      <h4 style="color: var(--sky); margin-top: 8px;">→ Phase 6 — Dashboard</h4>
+      <ul class="check-list">
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Worker XADD to prpulse:notifications</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>SSE endpoint: GET /events/stream</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>SSE broadcaster background task</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>React app (Vite + TypeScript)</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Live PR feed with risk badges</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Risk distribution chart (Recharts)</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Metrics / velocity chart</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Frontend Docker service</li>
+        <li class="ci-next"><span class="ci-dot cd-n"></span>Deploy to Render / Railway</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- FEATURES -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top">
+<div class="section" id="features">
+  <div class="section-label">08 — Features</div>
+  <h2 class="section-heading">What it does now. What it will do.</h2>
+
+  <div class="feat-section">
+    <div class="feat-head">Currently Working</div>
+    <div class="feat-grid">
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">Automatic PR risk scoring</div>
+          <div class="feat-desc">Every pull request is scored automatically on open. No manual configuration. The score reflects code size, config changes, API modifications, and breaking signal patterns.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">Breaking change detection</div>
+          <div class="feat-desc">Detects four types of risky changes in the diff: config file edits, large file rewrites, function signature modifications, and deleted API routes — all from the raw patch text.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">Crash-safe event pipeline</div>
+          <div class="feat-desc">Redis Streams + Pending Entries List + XAUTOCLAIM recovery. If the worker crashes mid-processing, no event is lost. Messages in PEL are automatically reclaimed every 30 seconds.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">REST API for analytics data</div>
+          <div class="feat-desc">5 endpoints serving PR lists, risk distributions, metrics aggregates, and repository analytics. Paginated, fast asyncpg queries, Pydantic-typed responses.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">3-attempt retry with exponential backoff</div>
+          <div class="feat-desc">GitHub API failures, network issues, and database timeouts are all retried automatically with 1s → 2s → 4s delays before giving up and routing to the DLQ.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-built"></div>
+        <div class="feat-content">
+          <div class="feat-title">Docker Compose setup</div>
+          <div class="feat-desc">PostgreSQL, Redis, and the API service run together with a single <code>docker compose up</code>. No manual database setup. Schema is created automatically on first start.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feat-section" style="margin-top: 32px;">
+    <div class="feat-head">Planned — Phase 6 and Beyond</div>
+    <div class="feat-grid">
+      <div class="feat-item">
+        <div class="feat-dot fd-planned"></div>
+        <div class="feat-content">
+          <div class="feat-title">Real-time dashboard with live PR feed</div>
+          <div class="feat-desc">React app with Server-Sent Events. New PRs appear in the feed seconds after opening, with risk badges (green / amber / red). No polling, no page refresh.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-planned"></div>
+        <div class="feat-content">
+          <div class="feat-title">Risk distribution and velocity charts</div>
+          <div class="feat-desc">Visual breakdown of how many PRs are LOW / MEDIUM / HIGH risk over time. Weekly merge velocity line chart. Built with Recharts.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-planned"></div>
+        <div class="feat-content">
+          <div class="feat-title">One-command full stack</div>
+          <div class="feat-desc">All 5 services — webhook, worker, api, postgres, redis — starting together with <code>docker compose up</code> including the React frontend served by nginx.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-dot fd-planned"></div>
+        <div class="feat-content">
+          <div class="feat-title">Public deployment</div>
+          <div class="feat-desc">Live deployment on Render or Railway. The webhook URL points to a public domain. A real GitHub App installation. Fully accessible demo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────── -->
+<!-- QUICK START -->
+<!-- ─────────────────────────────────────── -->
+<div class="full-border-top bg-alt">
+<div class="section" id="quickstart">
+  <div class="section-label">09 — Quick Start</div>
+  <h2 class="section-heading">Run it locally</h2>
+  <p class="section-intro">Everything you need to get the backend running in under 5 minutes.</p>
+
+  <div class="code-block"><span class="cc"># 1. Clone and set up</span>
+<span class="cm">git clone https://github.com/sricharanchavali37/PullRequest-Pulse</span>
+<span class="cm">cd PullRequest-Pulse</span>
+
+<span class="cc"># 2. Copy environment variables</span>
+<span class="cm">cp .env.example .env</span>
+<span class="cc"># Edit .env and fill in:</span>
+<span class="ck">GITHUB_TOKEN</span>=<span class="cv">your_personal_access_token</span>
+<span class="ck">GITHUB_OWNER</span>=<span class="cv">your_github_username</span>
+<span class="ck">GITHUB_REPO</span>=<span class="cv">your_test_repo_name</span>
+<span class="ck">DATABASE_URL</span>=<span class="cv">postgresql://postgres:postgres@localhost:5432/prpulse</span>
+
+<span class="cc"># 3. Start Redis and PostgreSQL via Docker</span>
+<span class="cm">docker compose up postgres redis -d</span>
+
+<span class="cc"># 4. Start the webhook service</span>
+<span class="cm">cd services/webhook && uvicorn app.main:app --port 8000 --reload</span>
+
+<span class="cc"># 5. Start the analysis worker (in a new terminal)</span>
+<span class="cm">cd services/worker && python -m app.main</span>
+
+<span class="cc"># 6. Start the query API (in a new terminal)</span>
+<span class="cm">cd services/api && uvicorn app.main:app --port 8001 --reload</span>
+
+<span class="cc"># 7. Send a test webhook event</span>
+<span class="cm">curl -X POST http://127.0.0.1:8000/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"number": 1}'</span>
+
+<span class="cc"># 8. Check what landed in Redis</span>
+<span class="cm">redis-cli XRANGE prpulse:events:raw - +</span>
+
+<span class="cc"># 9. Query analyzed PRs from the API</span>
+<span class="cm">curl http://localhost:8001/repos</span></div>
+</div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">PRPulse</div>
+    <div class="footer-text">
+      Pull Request Intelligence Platform ·
+      Event-Driven Architecture ·
+      Python · FastAPI · Redis Streams · PostgreSQL · React
+    </div>
+    <div class="footer-text" style="margin-top: 4px;">
+      Built by Srjcharanchavali37 · 6-phase project · Phases 1–5 complete
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
