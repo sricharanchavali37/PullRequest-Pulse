@@ -1,11 +1,3 @@
-"""
-config.py — API service configuration
-
-All values come from environment variables.
-Defaults are provided so the service works out-of-the-box with
-docker-compose without extra setup.
-"""
-
 import os
 
 # ── Database ──────────────────────────────────────────────────────────────────
@@ -13,6 +5,10 @@ DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:5432/prpulse",
 )
+
+# ── Redis (for SSE broadcaster) ───────────────────────────────────────────────
+REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
 
 # ── API settings ──────────────────────────────────────────────────────────────
 API_HOST:  str = os.getenv("API_HOST", "0.0.0.0")
@@ -24,5 +20,4 @@ PAGINATION_DEFAULT_LIMIT: int = 50
 PAGINATION_MAX_LIMIT:     int = 200
 
 # ── Risk threshold ────────────────────────────────────────────────────────────
-# A pull request is considered high-risk if risk_score >= this value
 HIGH_RISK_THRESHOLD: float = 7.0

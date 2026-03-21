@@ -1,7 +1,5 @@
 services:
 
-  # ── Infrastructure ──────────────────────────────────────────────────────────
-
   postgres:
     image: postgres:16-alpine
     container_name: prpulse_postgres
@@ -22,8 +20,6 @@ services:
     ports:
       - "6379:6379"
 
-  # ── Application services ────────────────────────────────────────────────────
-
   webhook:
     build: ./services/webhook
     container_name: prpulse_webhook
@@ -33,7 +29,7 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      GITHUB_WEBHOOK_SECRET: ""   # set this when you connect a real GitHub App
+      GITHUB_WEBHOOK_SECRET: ""
     depends_on:
       - redis
 
@@ -42,12 +38,12 @@ services:
     container_name: prpulse_worker
     restart: unless-stopped
     environment:
-      REDIS_HOST:    redis
-      REDIS_PORT:    "6379"
-      DATABASE_URL:  postgresql://postgres:postgres@postgres:5432/prpulse
-      GITHUB_TOKEN:  ${GITHUB_TOKEN}
-      GITHUB_OWNER:  ${GITHUB_OWNER}
-      GITHUB_REPO:   ${GITHUB_REPO}
+      REDIS_HOST:   redis
+      REDIS_PORT:   "6379"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/prpulse
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_OWNER: ${GITHUB_OWNER}
+      GITHUB_REPO:  ${GITHUB_REPO}
     depends_on:
       - redis
       - postgres
@@ -60,8 +56,20 @@ services:
       - "8001:8000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/prpulse
+      REDIS_HOST:   redis
+      REDIS_PORT:   "6379"
     depends_on:
       - postgres
+      - redis
+
+  frontend:
+    build: ./frontend
+    container_name: prpulse_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

@@ -1,0 +1,287 @@
+/* ── Reset & Base ──────────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:           #0d1117;
+  --bg-card:      #161b22;
+  --bg-card-hover:#1c2128;
+  --border:       #30363d;
+  --border-light: #21262d;
+  --text:         #e6edf3;
+  --text-muted:   #8b949e;
+  --text-dim:     #484f58;
+
+  --green:        #3fb950;
+  --green-bg:     #0d2d1a;
+  --green-border: #1a4028;
+
+  --yellow:       #d29922;
+  --yellow-bg:    #2d2208;
+  --yellow-border:#4a3510;
+
+  --red:          #f85149;
+  --red-bg:       #2d0f0e;
+  --red-border:   #4a1a18;
+
+  --blue:         #58a6ff;
+  --blue-bg:      #0d1f38;
+
+  --radius:       10px;
+  --radius-sm:    6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+
+.header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.logo-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Status Bar ─────────────────────────────────────────────────────────────── */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-green  { background: var(--green);  box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+.dot-yellow { background: var(--yellow); }
+.dot-red    { background: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.stat-total  { background: var(--border-light); color: var(--text-muted); border: 1px solid var(--border); }
+.stat-high   { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+.stat-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.stat-low    { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+
+/* ── Main ───────────────────────────────────────────────────────────────────── */
+
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* ── PR Grid ────────────────────────────────────────────────────────────────── */
+
+.pr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+/* ── PR Card ────────────────────────────────────────────────────────────────── */
+
+.pr-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.pr-card:hover {
+  border-color: #484f58;
+  background: var(--bg-card-hover);
+}
+
+/* New cards slide in with a highlight */
+.pr-card-new {
+  border-color: var(--blue) !important;
+  animation: slide-in 0.4s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pr-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pr-number {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Risk Badges ────────────────────────────────────────────────────────────── */
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-high   { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+.badge-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.badge-low    { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+
+/* ── PR Meta ────────────────────────────────────────────────────────────────── */
+
+.pr-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pr-author {
+  font-size: 12px;
+  color: var(--blue);
+  font-weight: 500;
+}
+
+.pr-repo {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+/* ── PR Stats ───────────────────────────────────────────────────────────────── */
+
+.pr-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-green { color: var(--green); }
+.stat-red   { color: var(--red); }
+
+/* ── Empty State ────────────────────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  gap: 14px;
+}
+
+.empty-icon  { font-size: 48px; }
+.empty-title { font-size: 18px; font-weight: 600; color: var(--text); }
+.empty-sub   { font-size: 14px; color: var(--text-muted); line-height: 1.7; }

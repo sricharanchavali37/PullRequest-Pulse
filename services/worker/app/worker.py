@@ -1,20 +1,16 @@
 """
-worker.py — Phase-4 Production Worker
+worker.py — Phase-6 Worker
 
-Preserves all Phase-2/3 logic (Redis loop, GitHub fetch, diff parse,
-risk score) and adds:
+Adds to Phase-4 logic:
+  • After successful DB persist + XACK, publishes analysis result
+    to prpulse:notifications so the SSE broadcaster can push it
+    to connected dashboard clients in real time.
 
-  • PostgreSQL persistence via repository layer
-  • Per-event retry with exponential backoff (1s / 2s / 4s)
-  • Dead Letter Queue (prpulse:events:failed) after retries exhausted
-  • XAUTOCLAIM recovery task every 30 seconds with cursor tracking
-  • Correct ACK ordering (persist → ACK)
-  • Structured logging throughout
-  • Graceful shutdown — closes Redis, DB pool, HTTP client
-
-ACK ordering rule (enforced):
-  analyse → persist → ACK
+ACK ordering rule (unchanged):
+  analyse → persist → ACK → notify
   ACK never fires before a successful DB write.
+  Notification is best-effort — if it fails, the event is already
+  persisted and ACK'd, so we log a warning and continue.
 """
 
 import asyncio
@@ -29,6 +25,7 @@ from app.config import (
     REDIS_URL,
     STREAM_NAME,
     FAILED_STREAM_NAME,
+    NOTIFICATIONS_STREAM_NAME,
     GROUP_NAME,
     GITHUB_OWNER,
     GITHUB_REPO,
@@ -133,6 +130,48 @@ async def _persist(analysis: PRAnalysis) -> None:
     )
 
 
+async def _notify(
+    redis_client: aioredis.Redis,
+    analysis:     PRAnalysis,
+) -> None:
+    """
+    Publish the analysis result to prpulse:notifications.
+
+    The SSE broadcaster in the API service reads from this stream
+    and pushes the event to all connected dashboard clients.
+
+    This is fire-and-forget — if it fails, we log and move on.
+    The PR is already persisted and ACK'd at this point.
+    """
+    try:
+        await redis_client.xadd(
+            NOTIFICATIONS_STREAM_NAME,
+            {
+                "pr_number":    str(analysis.pr_number),
+                "author":       analysis.author,
+                "risk_score":   str(analysis.risk_score),
+                "risk_level":   analysis.risk_level,
+                "files_changed": str(analysis.files_changed),
+                "lines_added":   str(analysis.lines_added),
+                "lines_removed": str(analysis.lines_removed),
+                "repo_owner":    GITHUB_OWNER,
+                "repo_name":     GITHUB_REPO,
+            },
+            maxlen      = 500,     # keep last 500 notifications
+            approximate = True,
+        )
+        logger.info(
+            "PR #%d — notification published to %s",
+            analysis.pr_number, NOTIFICATIONS_STREAM_NAME,
+        )
+    except Exception as exc:
+        # Best-effort — never let a notification failure cause a retry
+        logger.warning(
+            "PR #%d — failed to publish notification: %s",
+            analysis.pr_number, exc,
+        )
+
+
 def _log_analysis(analysis: PRAnalysis) -> None:
     """Emit the completed analysis result as structured log lines."""
     logger.info("Processing PR #%d", analysis.pr_number)
@@ -187,9 +226,13 @@ async def _handle_message(
     """
     Process one Redis Stream message end-to-end.
 
+    Order:
+      analyse → persist → ACK → notify
+
     Retry schedule: attempt 1 → sleep 1s → attempt 2 → sleep 2s → attempt 3.
     If all attempts fail: publish to DLQ, then ACK (clears PEL).
     ACK fires ONLY after successful DB persistence.
+    Notification fires ONLY after ACK — best-effort, never retried.
     """
     event_type = fields.get("event_type", "unknown")
     pr_number  = fields.get("pr_number",  "")
@@ -205,10 +248,6 @@ async def _handle_message(
         await redis_client.xack(STREAM_NAME, GROUP_NAME, redis_message_id)
         return
 
-    # Guard against malformed values (e.g. "abc", "1.5") that would cause
-    # int() to raise a ValueError deep inside the retry loop, burning all
-    # three retries on an unrecoverable input error.  Catch it once here,
-    # discard the message cleanly, and move on.
     try:
         pr_number_int = int(pr_number)
     except ValueError:
@@ -220,6 +259,7 @@ async def _handle_message(
         return
 
     last_error: str = ""
+    analysis: PRAnalysis | None = None
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -238,6 +278,10 @@ async def _handle_message(
             # ── ACK only after successful persistence ─────────────────────────
             await redis_client.xack(STREAM_NAME, GROUP_NAME, redis_message_id)
             logger.info("PR #%s — event acknowledged", pr_number)
+
+            # ── Notify dashboard (best-effort, after ACK) ─────────────────────
+            await _notify(redis_client, analysis)
+
             return   # success — exit retry loop
 
         except Exception as exc:
@@ -267,23 +311,8 @@ async def _handle_message(
 
 async def _recovery_loop(redis_client: aioredis.Redis, consumer: str) -> None:
     """
-    Background task: reclaims messages idle in the PEL.
-
-    Runs every RECOVERY_INTERVAL_SECONDS seconds.
-
-    Uses XAUTOCLAIM to find messages that have been idle longer than
-    RECOVERY_IDLE_MS.  These are messages a worker read but crashed
-    before ACKing.
-
-    Cursor tracking:
-      XAUTOCLAIM returns a next_cursor indicating where the scan
-      stopped.  We track this cursor across iterations so each scan
-      continues from where the previous one left off rather than
-      restarting from "0-0" every time.  When a full pass completes
-      (cursor returns to "0-0"), we reset and wait for the next interval.
-
-    Reclaimed messages are reprocessed through _handle_message() so the
-    full retry / DLQ / ACK logic applies.
+    Background task: reclaims messages idle in the PEL every 30 seconds.
+    Reclaimed messages are reprocessed through _handle_message().
     """
     logger.info(
         "PEL recovery task started "
@@ -291,13 +320,11 @@ async def _recovery_loop(redis_client: aioredis.Redis, consumer: str) -> None:
         RECOVERY_INTERVAL_SECONDS, RECOVERY_IDLE_MS, RECOVERY_BATCH_SIZE,
     )
 
-    # Start cursor at the beginning of the PEL on first run
     cursor = "0-0"
 
     while True:
         await asyncio.sleep(RECOVERY_INTERVAL_SECONDS)
         try:
-            # XAUTOCLAIM returns (next_cursor, [(id, fields), ...], [deleted_ids])
             result = await redis_client.xautoclaim(
                 name          = STREAM_NAME,
                 groupname     = GROUP_NAME,
@@ -310,13 +337,11 @@ async def _recovery_loop(redis_client: aioredis.Redis, consumer: str) -> None:
             next_cursor, claimed_entries, _deleted = result
 
             if not claimed_entries:
-                # Nothing claimed this pass — reset cursor for next interval
                 cursor = "0-0"
                 continue
 
             logger.info(
-                "PEL recovery: reclaimed %d idle message(s) "
-                "(cursor %s → %s)",
+                "PEL recovery: reclaimed %d idle message(s) (cursor %s → %s)",
                 len(claimed_entries), cursor, next_cursor,
             )
 
@@ -324,52 +349,36 @@ async def _recovery_loop(redis_client: aioredis.Redis, consumer: str) -> None:
                 logger.info("Reprocessing recovered message %s", msg_id)
                 await _handle_message(msg_id, fields, redis_client)
 
-            # Advance cursor so the next call continues from where we stopped.
-            # If XAUTOCLAIM signals it reached the end (returns "0-0"), the
-            # next interval will start a fresh full-PEL scan.
             cursor = next_cursor if next_cursor != "0-0" else "0-0"
 
         except Exception as exc:
-            # Never let a recovery error crash the background task
             logger.error("PEL recovery error: %s", exc)
-            cursor = "0-0"   # safe reset on error
+            cursor = "0-0"
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 async def run_worker() -> None:
-    """
-    Full startup sequence:
-      1. Validate config (fail fast on missing env vars)
-      2. Init DB pool + run schema DDL
-      3. Connect to Redis
-      4. Ensure consumer group exists
-      5. Start PEL recovery background task
-      6. Run infinite XREADGROUP loop
-      7. On shutdown: cancel recovery task, close all resources
-    """
     validate_config()
 
     consumer = _consumer_name()
     logger.info("Worker starting — consumer: %s", consumer)
 
-    # ── Database ──────────────────────────────────────────────────────────────
     await init_db()
 
-    # ── Redis ─────────────────────────────────────────────────────────────────
     redis_client = await aioredis.from_url(
         REDIS_URL,
         decode_responses=True,
     )
     await redis_client.ping()
     logger.info("Redis connection established")
-    logger.info("Stream:        %s", STREAM_NAME)
-    logger.info("Failed stream: %s", FAILED_STREAM_NAME)
-    logger.info("Consumer group:%s", GROUP_NAME)
+    logger.info("Stream:              %s", STREAM_NAME)
+    logger.info("Failed stream:       %s", FAILED_STREAM_NAME)
+    logger.info("Notifications stream:%s", NOTIFICATIONS_STREAM_NAME)
+    logger.info("Consumer group:      %s", GROUP_NAME)
 
     await _ensure_consumer_group(redis_client)
 
-    # ── PEL recovery background task ──────────────────────────────────────────
     recovery_task = asyncio.create_task(
         _recovery_loop(redis_client, consumer)
     )
@@ -401,7 +410,7 @@ async def run_worker() -> None:
             await recovery_task
         except asyncio.CancelledError:
             pass
-        await close_client()       # httpx AsyncClient
-        await close_db()           # asyncpg pool
+        await close_client()
+        await close_db()
         await redis_client.aclose()
         logger.info("Worker shutdown complete")
