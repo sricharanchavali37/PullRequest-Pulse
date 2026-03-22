@@ -113,7 +113,13 @@ async def mark_pr_merged(
 
     cycle_time_hours = (merged_at - created_at) in hours.
     Stored as a float so AVG queries are simple and fast.
+
+    We strip timezone info before passing to asyncpg because the DB
+    column is TIMESTAMP (not TIMESTAMPTZ) — naive UTC throughout.
     """
+    # Strip timezone — store as naive UTC to match the DB column type
+    merged_at_naive = merged_at.replace(tzinfo=None)
+
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -127,9 +133,9 @@ async def mark_pr_merged(
                 ) / 3600.0
             WHERE pr_number = $1
             """,
-            pr_number, merged_at,
+            pr_number, merged_at_naive,
         )
-    logger.info("mark_pr_merged: pr_number=%d merged_at=%s", pr_number, merged_at)
+    logger.info("mark_pr_merged: pr_number=%d merged_at=%s", pr_number, merged_at_naive)
 
 
 async def mark_pr_closed(pr_number: int) -> None:
@@ -166,9 +172,11 @@ async def insert_review(
 
     review_latency_hours = (submitted_at - pr.created_at) in hours.
 
-    Uses a single transaction so the review insert and the PR update
-    are atomic — no partial writes if the connection drops between them.
+    All datetimes stored as naive UTC to match the DB column type (TIMESTAMP).
     """
+    # Strip timezone — store as naive UTC to match DB column type
+    submitted_naive = submitted_at.replace(tzinfo=None)
+
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -180,8 +188,6 @@ async def insert_review(
             )
 
             if row is None:
-                # PR not yet in DB (event arrived before pr.opened was processed)
-                # Insert review without latency — it will be reprocessed on retry
                 logger.warning(
                     "insert_review: pr_number=%d not found — inserting without latency",
                     pr_number,
@@ -189,12 +195,8 @@ async def insert_review(
                 latency = None
             else:
                 pr_created_at = row["created_at"]
-                if pr_created_at.tzinfo is None:
-                    pr_created_at = pr_created_at.replace(tzinfo=timezone.utc)
-                if submitted_at.tzinfo is None:
-                    submitted_at = submitted_at.replace(tzinfo=timezone.utc)
-
-                diff_seconds = (submitted_at - pr_created_at).total_seconds()
+                # Both are now naive — direct subtraction works
+                diff_seconds = (submitted_naive - pr_created_at).total_seconds()
                 latency = max(0.0, diff_seconds / 3600.0)
 
             # Insert the review row
@@ -206,11 +208,10 @@ async def insert_review(
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 pr_number, repo_owner, repo_name,
-                reviewer, state, submitted_at, latency,
+                reviewer, state, submitted_naive, latency,
             )
 
             # Update PR's first_review_at only if not already set
-            # and update review_latency_hours to the first review's latency
             await conn.execute(
                 """
                 UPDATE pull_requests
@@ -219,7 +220,7 @@ async def insert_review(
                     review_latency_hours = COALESCE(review_latency_hours, $3)
                 WHERE pr_number = $1
                 """,
-                pr_number, submitted_at, latency,
+                pr_number, submitted_naive, latency,
             )
 
     logger.info(
