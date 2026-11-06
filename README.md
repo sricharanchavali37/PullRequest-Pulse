@@ -2,7 +2,7 @@
 
 > **An event-driven system that automatically analyses every GitHub Pull Request, computes a risk score, detects breaking changes, and exposes the results through a REST API and real-time dashboard.**
 
----
+---xyz
 
 ## What problem does this solve?
 
